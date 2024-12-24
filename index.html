@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quizaholic by Finndei</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f4f4;
+        }
+
+        .quiz-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 500px; /* Mở rộng chiều ngang */
+            text-align: left;
+        }
+
+        #answers li {
+            list-style-type: none;
+            background-color: #f1f1f1;
+            margin: 10px 0;
+            padding: 12px;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: background-color 0.3s;
+        }
+
+        #answers li:hover {
+            background-color: #ddd;
+        }
+
+        .correct {
+            background-color: #4CAF50 !important; /* Green for correct answer */
+        }
+
+        .incorrect {
+            background-color: #f44336 !important; /* Red for incorrect answer */
+        }
+
+        #next-button, #back-button, #submit-button {
+            background-color: #008CBA;
+            color: white;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 20px;
+            width: 100%;
+        }
+
+        #submit-button {
+            background-color: #f44336; /* Red color for submit button */
+        }
+
+        #next-button:disabled, #back-button:disabled, #submit-button:disabled {
+            background-color: #ccc;
+        }
+
+        #upload-container {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #file-input {
+            margin-top: 10px;
+        }
+
+        #question-status {
+            margin-top: 20px;
+            font-size: 16px;
+            text-align: center;
+        }
+
+        #jump-container {
+            margin-top: 20px;
+        }
+
+        /* CSS cho phần hiển thị điểm */
+        #score-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        #score {
+            font-size: 18px;
+            margin-left: 10px;
+            font-weight: bold;
+        }
+
+        .button-container {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .button-container button {
+            width: 48%;
+        }
+    </style>
+</head>
+<body>
+    <div class="quiz-container">
+        <div id="upload-container">
+            <input type="file" id="file-input" accept=".txt" onchange="handleFileUpload(event)">
+        </div>
+
+        <div id="question-container">
+            <h2 id="question-text">Đang tải câu hỏi...</h2>
+            <ul id="answers">
+                <li onclick="checkAnswer(this)"></li>
+                <li onclick="checkAnswer(this)"></li>
+                <li onclick="checkAnswer(this)"></li>
+                <li onclick="checkAnswer(this)"></li>
+            </ul>
+        </div>
+
+        <div id="question-status">
+            Câu hỏi: <span id="question-count">0</span> / <span id="total-questions">0</span>
+        </div>
+
+        <div class="button-container">
+            <button id="back-button" onclick="prevQuestion()" disabled>Quay lại</button>
+            <button id="next-button" onclick="nextQuestion()" disabled>Tiếp theo</button>
+        </div>
+
+        <div id="score-container">
+            <button id="submit-button" onclick="submitQuiz()" disabled>Nộp bài</button>
+            <span id="score"></span>
+        </div>
+    </div>
+
+    <script>
+        let currentQuestionIndex = 0;
+        let questions = []; // This will store questions loaded from the uploaded text file
+        let userAnswers = []; // This will store user's answers
+        let totalCorrectAnswers = 0;
+
+        // Function to handle file upload
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file && file.type === 'text/plain') {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const fileContent = e.target.result;
+                    parseQuestions(fileContent);
+                };
+                reader.readAsText(file);
+            } else {
+                alert("Vui lòng tải lên một tệp .txt hợp lệ.");
+            }
+        }
+
+        // Parse the content of the uploaded file
+        function parseQuestions(content) {
+            const lines = content.split('\n');
+            let currentQuestion = '';
+            let answers = [];
+            let isAnswer = false;
+
+            lines.forEach(line => {
+                line = line.trim();
+                if (line === '') return; // Skip empty lines
+
+                if (line.match(/^\d+\./)) {
+                    // If line starts with a number and a dot, it's a new question
+                    if (currentQuestion) {
+                        questions.push({ question: currentQuestion, answers });
+                    }
+                    currentQuestion = line; // Question number and text
+                    answers = [];
+                    isAnswer = false;
+                } else {
+                    // Otherwise, it's an answer
+                    if (line.startsWith('*')) {
+                        answers.push({ text: line.slice(1).trim(), isCorrect: true });
+                    } else {
+                        answers.push({ text: line.trim(), isCorrect: false });
+                    }
+                }
+            });
+
+            if (currentQuestion) {
+                questions.push({ question: currentQuestion, answers });
+            }
+
+            showQuestion();
+        }
+
+        // Display the current question
+        function showQuestion() {
+            const question = questions[currentQuestionIndex];
+            // Extract the question number and text, including the question number but excluding the letter before answer "A"
+            const questionText = question.question.replace(/^(\d+\.\s*)/, '');
+            document.getElementById('question-text').innerText = question.question;
+
+            const answers = document.querySelectorAll('#answers li');
+            answers.forEach((li, index) => {
+                li.innerText = question.answers[index].text;
+                li.classList.remove('correct', 'incorrect', 'selected');
+                // Highlight previously selected answer
+                if (userAnswers[currentQuestionIndex] === question.answers[index].text) {
+                    li.classList.add('selected');
+                }
+            });
+
+            // Update question count
+            document.getElementById('question-count').innerText = currentQuestionIndex + 1;
+            document.getElementById('total-questions').innerText = questions.length;
+
+            document.getElementById('next-button').disabled = true;
+            document.getElementById('back-button').disabled = currentQuestionIndex === 0;
+            document.getElementById('submit-button').disabled = false;
+
+            // Highlight correct and incorrect answers
+            if (userAnswers[currentQuestionIndex]) {
+                answers.forEach((li, index) => {
+                    if (question.answers[index].isCorrect && li.classList.contains('selected')) {
+                        li.classList.add('correct');
+                    } else if (!question.answers[index].isCorrect && li.classList.contains('selected')) {
+                        li.classList.add('incorrect');
+                    }
+                });
+            }
+        }
+
+        // Check if the selected answer is correct
+        function checkAnswer(selected) {
+            const question = questions[currentQuestionIndex];
+            const answers = document.querySelectorAll('#answers li');
+
+            // Remove selected class from all answers
+            answers.forEach(li => li.classList.remove('selected'));
+
+            // Mark the selected answer
+            selected.classList.add('selected');
+
+            // Highlight correct and incorrect answers immediately
+            answers.forEach((li, index) => {
+                if (question.answers[index].isCorrect) {
+                    li.classList.add('correct'); // Green for correct answer
+                } else if (li === selected && !question.answers[index].isCorrect) {
+                    li.classList.add('incorrect'); // Red for incorrect answer
+                }
+            });
+
+            // Store the answer
+            userAnswers[currentQuestionIndex] = selected.innerText;
+
+            // Enable the "Next" button after an answer is selected
+            document.getElementById('next-button').disabled = false;
+        }
+
+        // Load the next question
+        function nextQuestion() {
+            currentQuestionIndex++;
+            if (currentQuestionIndex < questions.length) {
+                showQuestion();
+            } else {
+                alert('Đã hoàn thành bài kiểm tra!');
+            }
+        }
+
+        // Load the previous question
+        function prevQuestion() {
+            currentQuestionIndex--;
+            if (currentQuestionIndex >= 0) {
+                showQuestion();
+            }
+        }
+
+        // Submit the quiz and show score
+        function submitQuiz() {
+            totalCorrectAnswers = 0;
+            questions.forEach((question, index) => {
+                if (userAnswers[index] === question.answers.find(a => a.isCorrect).text) {
+                    totalCorrectAnswers++;
+                }
+            });
+            document.getElementById('score').innerText = `Điểm của bạn: ${totalCorrectAnswers} / ${questions.length}`;
+        }
+    </script>
+</body>
+</html>
